@@ -47,13 +47,13 @@ else:
     uploaded_image = st.sidebar.file_uploader("Choisissez une image (format png, jpg, jpeg)", type=["png", "jpg", "jpeg"])
 
 # Endpoint API modifiable et option d'envoi
-default_api_endpoint = "http://localhost:5000/api/report_incident"
-send_to_api = st.sidebar.checkbox("Envoyer les événements détectés à l'API", value=False)
-if send_to_api:
-    api_endpoint = st.sidebar.text_input("URL de l'endpoint API", value=default_api_endpoint)
-else:
-    api_endpoint = None
-    st.sidebar.write("Les événements détectés seront enregistrés dans un fichier log.")
+api_endpoint = "https://smarteye-793fa8ced729.herokuapp.com/report_incident"
+# send_to_api = st.sidebar.checkbox("Envoyer les événements détectés à l'API", value=False)
+# if send_to_api:
+#     api_endpoint = st.sidebar.text_input("URL de l'endpoint API", value=default_api_endpoint)
+# else:
+#     api_endpoint = None
+#     st.sidebar.write("Les événements détectés seront enregistrés dans un fichier log.")
 
 start_button = st.button("Démarrer la surveillance")
 
@@ -170,7 +170,7 @@ if start_button:
             # Traitement de la réponse : envoi à l'API ou enregistrement dans un log
             if response_json is not None:
                 if response_json.get("accident") or response_json.get("incendie") or response_json.get("violence"):
-                    if send_to_api:
+                    if True:  # send_to_api:
                         st.success("Événement détecté, transmission à l'API...")
                         try:
                             with open(image_path, "rb") as image_file:
@@ -224,7 +224,7 @@ if start_button:
             
             if response_json is not None:
                 if response_json.get("accident") or response_json.get("incendie") or response_json.get("violence"):
-                    if send_to_api:
+                    if True: # send_to_api:
                         st.success("Événement détecté, transmission à l'API...")
                         try:
                             with open(image_path, "rb") as image_file:
