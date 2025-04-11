@@ -9,6 +9,7 @@ SmartEye est une application de surveillance intelligente capable d'analyser en 
 - [Fonctionnalités](#fonctionnalités)
 - [Pré-requis](#pré-requis)
 - [Installation](#installation)
+  - [Clonez le dépôt](#clonez-le-dépôt)
   - [Dépendances Python](#dépendances-python)
   - [Configuration sur Ubuntu](#configuration-sur-ubuntu)
 - [Configuration de l'application](#configuration-de-lapplication)
@@ -59,6 +60,14 @@ SmartEye est une application de surveillance intelligente capable d'analyser en 
 ---
 
 ## Installation
+
+### Clonez le dépôt
+
+Pour cloner le dépôt, ouvrez votre terminal et exécutez la commande suivante :
+
+```bash
+git clone https://github.com/TitanSage02/SmartEye.git
+```
 
 ### Dépendances Python
 
