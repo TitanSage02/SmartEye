@@ -47,7 +47,7 @@ else:
     uploaded_image = st.sidebar.file_uploader("Choisissez une image (format png, jpg, jpeg)", type=["png", "jpg", "jpeg"])
 
 # Endpoint API modifiable et option d'envoi
-api_endpoint = "https://smarteye-793fa8ced729.herokuapp.com/report_incident"
+api_endpoint = "https://smarteye-793fa8ced729.herokuapp.com/report_incident/"
 
 
 # Mail alert
