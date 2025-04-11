@@ -4,35 +4,79 @@ import os
 import time
 import json
 import requests
+import re
 from google import genai
 from google.genai import types
 
-from utils import formater_resultat
+from utils import formater_resultat  # Fonction qui formate le résultat JSON pour l'affichage
 
-# Chargement des variables d'envrionnement
 from dotenv import load_dotenv
 load_dotenv()
 
-# API endpoint
-API_ENDPOINT = "localhost:5000/api/report_incident"
+# ------------------- Interface et configuration -------------------
+st.image("logo.jpg", width=200)
+st.title("SmartEye - Système intelligent de surveillance")
+st.write(
+    "SmartEye analyse en temps réel des images capturées via une caméra IP ou importées depuis un fichier. "
+    "Grâce à son IA, il détecte automatiquement la présence d'accidents, d'incendies ou de scènes de violence, "
+    "et transmet les alertes à une API ou enregistre les résultats dans un log."
+)
 
-# Vérification de la clé d'API
-os.environ["GEMINI_API_KEY"] = os.environ.get("GEMINI_API_KEY")
-if os.environ.get("GEMINI_API_KEY") is None:
-    st.error("La clé d'API Gémini n'est pas configurée. Veuillez la définir dans les variables d'environnement.")
-    st.stop()
+# Récupération ou saisie de la clé API SmartEye
+gemini_api_key = os.environ.get("GEMINI_API_KEY")
+if gemini_api_key is None or gemini_api_key.strip() == "":
+    gemini_api_key = st.sidebar.text_input("Entrez la clé API SmartEye", type="password")
+    if gemini_api_key.strip() == "":
+        st.error("La clé API SmartEye est obligatoire pour continuer.")
+        st.stop()
+    else:
+        os.environ["GEMINI_API_KEY"] = gemini_api_key
 
 
-# Fonction d'analyse via Gémini
+# Paramètres de la source d'image et de l'intervalle d'analyse
+source_option = st.sidebar.selectbox("Source de l'image", ("Caméra IP", "Fichier local"))
+interval = st.sidebar.number_input("Intervalle (secondes) entre les analyses", min_value=5, max_value=3600, value=60)
+
+if source_option == "Caméra IP":
+    camera_url = st.sidebar.text_input("URL de la caméra IP", value="http://192.168.1.100:8080/video")
+else:
+    uploaded_image = st.sidebar.file_uploader("Choisissez une image (format png, jpg, jpeg)", type=["png", "jpg", "jpeg"])
+
+# Endpoint API modifiable et option d'envoi
+default_api_endpoint = "http://localhost:5000/api/report_incident"
+send_to_api = st.sidebar.checkbox("Envoyer les événements détectés à l'API", value=True)
+if send_to_api:
+    api_endpoint = st.sidebar.text_input("URL de l'endpoint API", value=default_api_endpoint)
+else:
+    api_endpoint = None
+    st.sidebar.write("Les événements détectés seront enregistrés dans un fichier log.")
+
+start_button = st.button("Démarrer la surveillance")
+
+# ------------------- Fonctions -------------------
+
+def capture_ip_camera_image(camera_url):
+    """Capture une image depuis le flux d'une caméra IP via OpenCV."""
+    cap = cv2.VideoCapture(camera_url)
+    ret, frame = cap.read()
+    cap.release()
+    if ret:
+        # Sauvegarde temporaire dans le dossier courant
+        image_path = "captured.jpg"
+        cv2.imwrite(image_path, frame)
+        return image_path
+    else:
+        return None
+
 def call_gemini_analysis(image_path):
-    # Création du client avec la clé d'API stockée dans les variables d'environnement
+    """Appelle Gémini pour analyser l'image et renvoie la réponse texte."""
     client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
     
-    # Upload du fichier image vers Gémini
+    # Upload de l'image
     uploaded_file = client.files.upload(file=image_path)
     files = [uploaded_file]
     
-    # Définition du modèle utilisé et préparation du contenu avec l'instruction à suivre
+    # Préparation de l'instruction d'analyse
     model = "gemini-2.0-flash-thinking-exp-01-21"
     instructions_text = (
         "Tu es un système intelligent de surveillance par caméra. Une courte vidéo t’a été transmise.\n\n"
@@ -61,7 +105,6 @@ def call_gemini_analysis(image_path):
         types.Content(
             role="user",
             parts=[
-                # On envoie l'image (son URI et son type MIME sont récupérés depuis l'upload)
                 types.Part.from_uri(
                     file_uri=files[0].uri,
                     mime_type=files[0].mime_type,
@@ -71,66 +114,36 @@ def call_gemini_analysis(image_path):
         )
     ]
     
-    generate_content_config = types.GenerateContentConfig(
-        response_mime_type="text/plain"
-    )
+    generate_content_config = types.GenerateContentConfig(response_mime_type="text/plain")
     
     response_text = ""
-    # Génération du contenu en mode stream et concaténation des morceaux reçus
     for chunk in client.models.generate_content_stream(
         model=model,
         contents=contents,
         config=generate_content_config,
     ):
-        response_text += chunk.text
+        response_text += chunk.text if chunk.text else ""
     return response_text
 
-# Fonction pour capturer une image à partir d'une caméra IP (en utilisant OpenCV)
-def capture_ip_camera_image(camera_url):
-    cap = cv2.VideoCapture(camera_url)
-    ret, frame = cap.read()
-    cap.release()
-    if ret:
-        image_path = "captured.jpg"
-        cv2.imwrite(image_path, frame)
-        return image_path
-    else:
-        return None
-
-
-# --- Partie Streamlit ---
-st.title("Surveillance Vidéo avec Gémini")
-
-# Sélection du mode d'entrée via la barre latérale
-source_option = st.sidebar.selectbox("Source de l'image", ("Caméra IP", "Fichier local"))
-interval = st.sidebar.number_input("Intervalle (secondes) entre les analyses", min_value=5, max_value=3600, value=60)
-
-if source_option == "Caméra IP":
-    # Pour une caméra IP, spécifier l'URL du flux vidéo
-    camera_url = st.sidebar.text_input("URL de la caméra IP", value="http://192.168.1.100:8080/video")
-else:
-    # Pour une image locale, on utilise le widget file_uploader de Streamlit
-    uploaded_image = st.sidebar.file_uploader("Choisissez une image (format png, jpg, jpeg)", type=["png", "jpg", "jpeg"])
-
-# Bouton pour démarrer la surveillance
-start_button = st.button("Démarrer la surveillance")
+# ------------------- Boucle principale -------------------
 
 if start_button:
-    st.write("Démarrage de la surveillance...")
-    # Un placeholder pour mettre à jour l'affichage de l'image en direct
-    placeholder = st.empty()
+    st.markdown("### Surveillance continue en cours...")
     
-    # Boucle de surveillance continue (attention : ce code tourne en boucle, à adapter pour une production)
+    # Placeholders pour l'image, le décompte et la barre de progression
+    image_placeholder = st.empty()
+    countdown_placeholder = st.empty()
+    progress_bar = st.progress(100)
+    
     while True:
-        # Récupération de l'image selon la source choisie
+        # Récupération de l'image selon le mode choisi
         if source_option == "Caméra IP":
             image_path = capture_ip_camera_image(camera_url)
         else:
             if uploaded_image is not None:
+                
                 images_folder = "images_uploaded"
                 os.makedirs(images_folder, exist_ok=True)
-                
-                # Définition du chemin complet du fichier image dans le dossier "images"
                 image_path = os.path.join(images_folder, "uploaded_image.jpg")
                 
                 with open(image_path, "wb") as f:
@@ -142,59 +155,58 @@ if start_button:
         if image_path is None:
             st.error("Impossible de capturer l'image.")
             break
-
-        # Affichage de l'image capturée dans l'application
-        placeholder.image(image_path, caption="Image capturée", use_container_width=True)
         
-        # Appel à Gémini pour analyser l'image et récupération du résultat
+        # Affichage de l'image capturée
+        image_placeholder.image(image_path, caption="Image capturée", width=400)
+        
+        # Appel à SmartEye pour analyser l'image
         response_text = call_gemini_analysis(image_path)
-
+        
+        # Extraction rigoureuse du contenu JSON
         try:
-            # Conversion de la réponse en JSON
-            response_text = response_text.split("{", 1)[1] # On enlève le texte de la réponse pour ne garder que le JSON
-            response_text = "{" + response_text
-
-            response_json = json.loads(response_text)
+            debut = response_text.find("{")
+            fin = response_text.rfind("}") + 1
+            json_str = response_text[debut:fin]
+            response_json = json.loads(json_str)
         except Exception as e:
-            st.error("Erreur lors du parsing du JSON : " + str(e))
+            st.error(f"Erreur lors du parsing du JSON :\n```\n{e}\n```")
             response_json = None
-
+        
+        # Affichage formaté du résultat de l'analyse
         if response_json is not None:
             message_formate = formater_resultat(response_json)
             st.markdown(message_formate)
-
-
-        # # Conversion de la réponse en JSON
-        # try:
-        #     response_json = json.loads(response_text)
-        # except Exception as e:
-        #     st.error("Erreur lors du parsing du JSON : " + str(e))
-        #     response_json = None
         
-        # Traitement de la réponse : envoi à une API ou stockage en log
+        # Traitement de la réponse : envoi à l'API ou log
         if response_json is not None:
-            # Si au moins une alerte est présente
             if response_json.get("accident") or response_json.get("incendie") or response_json.get("violence"):
-                st.success("Événement détecté, transmission à l'API...")
-                
-                # Exemple d'API endpoint, à remplacer par l'URL réelle
-                api_endpoint = API_ENDPOINT
-                
-                try:
-                    with open(image_path, "rb") as image_file:
-                        files_to_send = {"image": image_file}
-                        data = {"response": json.dumps(response_json)}
-                        api_response = requests.post(api_endpoint, files=files_to_send, data=data)
-                    
-                    st.write("Réponse de l'API :", api_response.text)
-                except Exception as e:
-                    st.error("Erreur lors de l'envoi à l'API : " + str(e))
+                if send_to_api:
+                    st.success("Événement détecté, transmission à l'API...")
+                    try:
+                        with open(image_path, "rb") as image_file:
+                            data = {"response": json.dumps(response_json)}
+                            files_to_send = {"image": image_file}
+                            api_response = requests.post(api_endpoint, files=files_to_send, data=data)
+                        if api_response.ok:
+                            st.write("Réponse de l'API :", api_response.text)
+                        else:
+                            st.error(f"Erreur lors de la transmission à l'API. Code {api_response.status_code}:\n```\n{api_response.text}\n```")
+                    except Exception as e:
+                        st.error(f"Erreur lors de la transmission à l'API. Détails :\n```\n{e}\n```")
+                else:
+                    st.info("Envoi à l'API désactivé. Résultat enregistré en log.")
+                    with open("log.txt", "a") as log_file:
+                        log_file.write(time.strftime("%Y-%m-%d %H:%M:%S") + " - " + json.dumps(response_json) + "\n")
             else:
                 st.info("Aucun événement détecté, réponse enregistrée en log.")
-                
-                # Stockage dans un fichier log local avec un horodatage
                 with open("log.txt", "a") as log_file:
-                    log_file.write(time.strftime("%Y-%m-%d %H:%M:%S") + " - " + response_text + "\n")
+                    log_file.write(time.strftime("%Y-%m-%d %H:%M:%S") + " - " + json.dumps(response_json) + "\n")
         
-        # Pause entre les analyses
-        time.sleep(interval)
+        # Décompte avant la prochaine analyse avec barre de progression
+        for sec in range(interval, 0, -1):
+            countdown_placeholder.text(f"Prochaine analyse dans {sec} seconde(s)...")
+            progress_bar.progress(int((sec/interval)*100))
+            time.sleep(1)
+        
+        # Réinitialisation du compte à rebours (le placeholder sera écrasé à la prochaine itération)
+        countdown_placeholder.empty()
