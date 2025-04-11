@@ -8,7 +8,7 @@ import re
 from google import genai
 from google.genai import types
 
-from utils import formater_resultat  # Fonction qui formate le résultat JSON pour l'affichage
+from utils import formater_resultat, send_mail 
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -48,6 +48,23 @@ else:
 
 # Endpoint API modifiable et option d'envoi
 api_endpoint = "https://smarteye-793fa8ced729.herokuapp.com/report_incident"
+
+
+# Mail alert
+destinataire = ""
+send_mail_ = st.sidebar.checkbox("Envoyer un mail du service d'alerte(votre mail idéalement)", value=True)
+if send_mail_:
+    destinataire = st.sidebar.text_input("Entrez votre adresse email", value="")
+    if destinataire.strip() == "":
+        st.error("L'adresse email est obligatoire pour envoyer des alertes.")
+        st.stop()
+    else:
+        st.sidebar.write("Les alertes seront envoyées à l'adresse email fournie.")
+else:
+    destinataire = None
+    st.sidebar.write("Les alertes ne seront pas envoyées par email.")
+
+
 # send_to_api = st.sidebar.checkbox("Envoyer les événements détectés à l'API", value=False)
 # if send_to_api:
 #     api_endpoint = st.sidebar.text_input("URL de l'endpoint API", value=default_api_endpoint)
@@ -221,6 +238,8 @@ if start_button:
             if response_json is not None:
                 message_formate = formater_resultat(response_json)
                 st.markdown(message_formate)
+                send_mail(message_formate, destinataire)
+                st.info("Email d'alerte envoyé avec succès.")
             
             if response_json is not None:
                 if response_json.get("accident") or response_json.get("incendie") or response_json.get("violence"):
