@@ -20,7 +20,7 @@ st.set_page_config(
     layout="centered"
 )
 
-st.image("logo.jpg", width=200)
+st.image("logo.jpg", width=80)
 st.title("SmartEye - Système intelligent de surveillance")
 st.write(
     "SmartEye analyse en temps réel des images capturées via une caméra IP ou importées depuis un fichier. "
