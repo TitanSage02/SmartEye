@@ -14,6 +14,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ------------------- Interface et configuration -------------------
+st.set_page_config(
+    page_title="SmartEye",
+    page_icon=":eye:", 
+    layout="centered"
+)
+
 st.image("logo.jpg", width=200)
 st.title("SmartEye - Système intelligent de surveillance")
 st.write(
@@ -32,12 +38,10 @@ if gemini_api_key is None or gemini_api_key.strip() == "":
     else:
         os.environ["GEMINI_API_KEY"] = gemini_api_key
 
-
-# Paramètres de la source d'image et de l'intervalle d'analyse
+# Paramètres de la source d'image et, pour la caméra IP, de l'intervalle d'analyse
 source_option = st.sidebar.selectbox("Source de l'image", ("Caméra IP", "Fichier local"))
-interval = st.sidebar.number_input("Intervalle (secondes) entre les analyses", min_value=5, max_value=3600, value=60)
-
 if source_option == "Caméra IP":
+    interval = st.sidebar.number_input("Intervalle (secondes) entre les analyses", min_value=5, max_value=3600, value=60)
     camera_url = st.sidebar.text_input("URL de la caméra IP", value="http://192.168.1.100:8080/video")
 else:
     uploaded_image = st.sidebar.file_uploader("Choisissez une image (format png, jpg, jpeg)", type=["png", "jpg", "jpeg"])
@@ -61,7 +65,6 @@ def capture_ip_camera_image(camera_url):
     ret, frame = cap.read()
     cap.release()
     if ret:
-        # Sauvegarde temporaire dans le dossier courant
         image_path = "captured.jpg"
         cv2.imwrite(image_path, frame)
         return image_path
@@ -130,83 +133,139 @@ def call_gemini_analysis(image_path):
 if start_button:
     st.markdown("### Surveillance continue en cours...")
     
-    # Placeholders pour l'image, le décompte et la barre de progression
-    image_placeholder = st.empty()
-    countdown_placeholder = st.empty()
-    progress_bar = st.progress(100)
-    
-    while True:
-        # Récupération de l'image selon le mode choisi
-        if source_option == "Caméra IP":
+    if source_option == "Caméra IP":
+        # Placeholders pour l'image, le décompte et la barre de progression
+        image_placeholder = st.empty()
+        countdown_placeholder = st.empty()
+        progress_bar = st.progress(100)
+        
+        while True:
+            # Capture de l'image depuis la caméra IP
             image_path = capture_ip_camera_image(camera_url)
-        else:
-            if uploaded_image is not None:
-                
-                images_folder = "images_uploaded"
-                os.makedirs(images_folder, exist_ok=True)
-                image_path = os.path.join(images_folder, "uploaded_image.jpg")
-                
-                with open(image_path, "wb") as f:
-                    f.write(uploaded_image.getbuffer())
-            else:
-                st.error("Veuillez fournir une image.")
+            if image_path is None:
+                st.error("Impossible de capturer l'image.")
                 break
-        
-        if image_path is None:
-            st.error("Impossible de capturer l'image.")
-            break
-        
-        # Affichage de l'image capturée
-        image_placeholder.image(image_path, caption="Image capturée", width=400)
-        
-        # Appel à SmartEye pour analyser l'image
-        response_text = call_gemini_analysis(image_path)
-        
-        # Extraction rigoureuse du contenu JSON
-        try:
-            debut = response_text.find("{")
-            fin = response_text.rfind("}") + 1
-            json_str = response_text[debut:fin]
-            response_json = json.loads(json_str)
-        except Exception as e:
-            st.error(f"Erreur lors du parsing du JSON :\n```\n{e}\n```")
-            response_json = None
-        
-        # Affichage formaté du résultat de l'analyse
-        if response_json is not None:
-            message_formate = formater_resultat(response_json)
-            st.markdown(message_formate)
-        
-        # Traitement de la réponse : envoi à l'API ou log
-        if response_json is not None:
-            if response_json.get("accident") or response_json.get("incendie") or response_json.get("violence"):
-                if send_to_api:
-                    st.success("Événement détecté, transmission à l'API...")
-                    try:
-                        with open(image_path, "rb") as image_file:
-                            data = {"response": json.dumps(response_json)}
-                            files_to_send = {"image": image_file}
-                            api_response = requests.post(api_endpoint, files=files_to_send, data=data)
-                        if api_response.ok:
-                            st.write("Réponse de l'API :", api_response.text)
-                        else:
-                            st.error(f"Erreur lors de la transmission à l'API. Code {api_response.status_code}:\n```\n{api_response.text}\n```")
-                    except Exception as e:
-                        st.error(f"Erreur lors de la transmission à l'API. Détails :\n```\n{e}\n```")
+            
+            # Affichage de l'image capturée
+            image_placeholder.image(image_path, caption="Image capturée", width=400)
+            
+            # Appel à SmartEye pour analyser l'image
+            response_text = call_gemini_analysis(image_path)
+            
+            # Extraction rigoureuse du contenu JSON
+            try:
+                debut = response_text.find("{")
+                fin = response_text.rfind("}") + 1
+                json_str = response_text[debut:fin]
+                response_json = json.loads(json_str)
+            except Exception as e:
+                st.error(f"Erreur lors du parsing du JSON :\n```\n{e}\n```")
+                response_json = None
+            
+            # Affichage formaté du résultat de l'analyse
+            if response_json is not None:
+                message_formate = formater_resultat(response_json)
+                st.markdown(message_formate)
+            
+            # Traitement de la réponse : envoi à l'API ou enregistrement dans un log
+            if response_json is not None:
+                if response_json.get("accident") or response_json.get("incendie") or response_json.get("violence"):
+                    if send_to_api:
+                        st.success("Événement détecté, transmission à l'API...")
+                        try:
+                            with open(image_path, "rb") as image_file:
+                                data = {"response": json.dumps(response_json)}
+                                files_to_send = {"image": image_file}
+                                api_response = requests.post(api_endpoint, files=files_to_send, data=data)
+                            if api_response.ok:
+                                st.write("Réponse de l'API :", api_response.text)
+                            else:
+                                st.error(f"Erreur lors de la transmission à l'API. Code {api_response.status_code}:\n```\n{api_response.text}\n```")
+                        except Exception as e:
+                            st.error(f"Erreur lors de la transmission à l'API. Détails :\n```\n{e}\n```")
+                    else:
+                        st.info("Envoi à l'API désactivé. Résultat enregistré en log.")
+                        with open("log.txt", "a") as log_file:
+                            log_file.write(time.strftime("%Y-%m-%d %H:%M:%S") + " - " + json.dumps(response_json) + "\n")
                 else:
-                    st.info("Envoi à l'API désactivé. Résultat enregistré en log.")
+                    st.info("Aucun événement détecté, réponse enregistrée en log.")
                     with open("log.txt", "a") as log_file:
                         log_file.write(time.strftime("%Y-%m-%d %H:%M:%S") + " - " + json.dumps(response_json) + "\n")
-            else:
-                st.info("Aucun événement détecté, réponse enregistrée en log.")
-                with open("log.txt", "a") as log_file:
-                    log_file.write(time.strftime("%Y-%m-%d %H:%M:%S") + " - " + json.dumps(response_json) + "\n")
-        
-        # Décompte avant la prochaine analyse avec barre de progression
-        for sec in range(interval, 0, -1):
-            countdown_placeholder.text(f"Prochaine analyse dans {sec} seconde(s)...")
-            progress_bar.progress(int((sec/interval)*100))
-            time.sleep(1)
-        
-        # Réinitialisation du compte à rebours (le placeholder sera écrasé à la prochaine itération)
-        countdown_placeholder.empty()
+            
+            # Décompte avant la prochaine analyse avec barre de progression
+            for sec in range(interval, 0, -1):
+                countdown_placeholder.text(f"Prochaine analyse dans {sec} seconde(s)...")
+                progress_bar.progress(int((sec / interval) * 100))
+                time.sleep(1)
+            
+    else:  # Fichier local
+        if uploaded_image is not None:
+            images_folder = "images_uploaded"
+            os.makedirs(images_folder, exist_ok=True)
+            image_path = os.path.join(images_folder, "uploaded_image.jpg")
+            with open(image_path, "wb") as f:
+                f.write(uploaded_image.getbuffer())
+            
+            st.image(image_path, caption="Image capturée", width=400)
+            
+            response_text = call_gemini_analysis(image_path)
+            try:
+                debut = response_text.find("{")
+                fin = response_text.rfind("}") + 1
+                json_str = response_text[debut:fin]
+                response_json = json.loads(json_str)
+            except Exception as e:
+                st.error(f"Erreur lors du parsing du JSON :\n```\n{e}\n```")
+                response_json = None
+            
+            if response_json is not None:
+                message_formate = formater_resultat(response_json)
+                st.markdown(message_formate)
+            
+            if response_json is not None:
+                if response_json.get("accident") or response_json.get("incendie") or response_json.get("violence"):
+                    if send_to_api:
+                        st.success("Événement détecté, transmission à l'API...")
+                        try:
+                            with open(image_path, "rb") as image_file:
+                                data = {"response": json.dumps(response_json)}
+                                files_to_send = {"image": image_file}
+                                api_response = requests.post(api_endpoint, files=files_to_send, data=data)
+                            if api_response.ok:
+                                st.write("Réponse de l'API :", api_response.text)
+                            else:
+                                st.error(f"Erreur lors de la transmission à l'API. Code {api_response.status_code}:\n```\n{api_response.text}\n```")
+                        except Exception as e:
+                            st.error(f"Erreur lors de la transmission à l'API. Détails :\n```\n{e}\n```")
+                    else:
+                        st.info("Envoi à l'API désactivé. Résultat enregistré en log.")
+                        with open("log.txt", "a") as log_file:
+                            log_file.write(time.strftime("%Y-%m-%d %H:%M:%S") + " - " + json.dumps(response_json) + "\n")
+                else:
+                    st.info("Aucun événement détecté, réponse enregistrée en log.")
+                    with open("log.txt", "a") as log_file:
+                        log_file.write(time.strftime("%Y-%m-%d %H:%M:%S") + " - " + json.dumps(response_json) + "\n")
+        else:
+            st.error("Veuillez fournir une image pour l'analyse.")
+
+
+# ------------------- Footer -------------------
+footer = """
+<style>
+.footer {
+    position: fixed;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    color: #333;
+    text-align: center;
+    padding: 5px;
+    font-size: 0.9em;
+}
+</style>
+<div class="footer">
+    <p>© 2025 SmartEye - Système intelligent de surveillance ^ Hackacton FRIARE 2025 | Tous droits réservés</p>
+</div>
+"""
+
+st.markdown(footer, unsafe_allow_html=True)
