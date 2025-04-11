@@ -39,7 +39,7 @@ if gemini_api_key is None or gemini_api_key.strip() == "":
         os.environ["GEMINI_API_KEY"] = gemini_api_key
 
 # Paramètres de la source d'image et, pour la caméra IP, de l'intervalle d'analyse
-source_option = st.sidebar.selectbox("Source de l'image", ("Caméra IP", "Fichier local"))
+source_option = st.sidebar.selectbox("Source de l'image", ("Fichier local", "Caméra IP"))
 if source_option == "Caméra IP":
     interval = st.sidebar.number_input("Intervalle (secondes) entre les analyses", min_value=5, max_value=3600, value=60)
     camera_url = st.sidebar.text_input("URL de la caméra IP", value="http://192.168.1.100:8080/video")
@@ -48,7 +48,7 @@ else:
 
 # Endpoint API modifiable et option d'envoi
 default_api_endpoint = "http://localhost:5000/api/report_incident"
-send_to_api = st.sidebar.checkbox("Envoyer les événements détectés à l'API", value=True)
+send_to_api = st.sidebar.checkbox("Envoyer les événements détectés à l'API", value=False)
 if send_to_api:
     api_endpoint = st.sidebar.text_input("URL de l'endpoint API", value=default_api_endpoint)
 else:
