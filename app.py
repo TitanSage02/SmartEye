@@ -238,7 +238,8 @@ if start_button:
             if response_json is not None:
                 message_formate = formater_resultat(response_json)
                 st.markdown(message_formate)
-                send_mail(message_formate, destinataire)
+                if send_mail_:
+                    send_mail(message_formate, destinataire)
                 st.info("Email d'alerte envoyé avec succès.")
             
             if response_json is not None:
