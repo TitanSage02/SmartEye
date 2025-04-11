@@ -1,106 +1,196 @@
-# Surveillance Vidéo avec Gémini
+# SmartEye - Système intelligent de surveillance
 
-Ce projet met en place un système de surveillance intelligent permettant d'analyser des images provenant soit d'une caméra IP, soit d'un fichier local. L'analyse est effectuée par le modèle Gémini, qui identifie automatiquement des événements critiques tels qu'un accident de la route, un incendie ou une scène de violence physique, et renvoie un résultat au format JSON. En fonction des événements détectés, le système transmet l'analyse et l'image à une API ou enregistre la réponse dans un fichier de log en local.
+SmartEye est une application de surveillance intelligente capable d'analyser en temps réel des images provenant d'une caméra IP ou d'un fichier image local. Grâce à son intelligence artificielle, l'application détecte automatiquement la présence d'accidents, d'incendies ou de scènes de violence, et agit en conséquence en transmettant les alertes à une API ou en consignant les résultats dans un fichier log.
+
+---
+
+## Table des matières
+
+- [Fonctionnalités](#fonctionnalités)
+- [Pré-requis](#pré-requis)
+- [Installation](#installation)
+  - [Dépendances Python](#dépendances-python)
+  - [Configuration sur Ubuntu](#configuration-sur-ubuntu)
+- [Configuration de l'application](#configuration-de-lapplication)
+  - [Clé API SmartEye](#clé-api-smarteye)
+  - [Source d'image](#source-dimage)
+  - [Configuration de l'API](#configuration-de-lapi)
+- [Utilisation](#utilisation)
+  - [Mode Caméra IP](#mode-caméra-ip)
+  - [Mode Fichier local](#mode-fichier-local)
+- [Structure du code](#structure-du-code)
+- [Déploiement et conteneurisation](#déploiement-et-conteneurisation)
+- [Dépannage](#dépannage)
+- [Remerciements](#remerciements)
+
+---
 
 ## Fonctionnalités
 
-- **Capture d'image** :  
-  Le système permet de capturer une image via un flux vidéo d'une caméra IP ou de charger une image disponible localement.
+- **Analyse en temps réel** :  
+  SmartEye détecte automatiquement des situations critiques à partir des images (accidents, incendies, violences).
 
-- **Analyse via Gémini** :  
-  L'image est envoyée à l'API Gémini pour une analyse basée sur des consignes précises. Le résultat est renvoyé sous forme de JSON indiquant pour chaque scénario (accident, incendie, violence) un booléen et accompagné d'un court commentaire.
+- **Modes d'entrée** :
+  - **Caméra IP** : Analyse continue avec décompte et barre de progression affichés avant chaque analyse.
+  - **Fichier local** : Analyse ponctuelle d'une image uploadée par l'utilisateur.
 
-- **Traitement conditionnel** :  
-  - Si l’analyse indique la détection d’un événement (au moins un indicateur à `true`), l’image et les informations sont envoyées à une API prédéfinie.
-  - Sinon, la réponse est simplement enregistrée dans un fichier de log local.
+- **Intégration API** :  
+  Possibilité d'envoyer les alertes à une API configurable ou d'enregistrer les résultats dans un fichier log.
 
-- **Interface conviviale avec Streamlit** :  
-  L’interface utilisateur permet de configurer la source de l’image (caméra IP ou fichier local) et l’intervalle entre chaque analyse.
+- **Interface conviviale** :  
+  Application basée sur Streamlit, permettant de configurer la clé API, la source d'image, l'intervalle d'analyse et l'endpoint API.
 
-## Prérequis
+- **Affichage stylisé** :  
+  Les résultats et erreurs (affichés sous forme de blocs de code) facilitent le débogage.
 
-- **Python 3.7 ou supérieur**
-- **Une clé d'API Gémini** :  
-  Le modèle Gémini nécessite une clé d'API pour fonctionner. Définissez la variable d'environnement `GEMINI_API_KEY` avec votre clé.
+---
+
+## Pré-requis
+
+- **Python 3.7+**
+- **Système d'exploitation** : Windows ou Ubuntu.
+- **Clé API SmartEye** : Nécessaire pour accéder aux services d'analyse.
+- **Bibliothèque système** (pour Ubuntu) :  
+  Pour résoudre l'erreur `libGL.so.1: cannot open shared object file`, installez le paquet suivant :
+  ```bash
+  sudo apt update && sudo apt install -y libgl1-mesa-glx
+  ```
+
+---
 
 ## Installation
 
-1. **Cloner le dépôt :**
-   ```bash
-   git clone https://TitanSage02/SmartEye.git
-   cd SmartEye
-   ```
+### Dépendances Python
 
-2. **Créer et activer un environnement virtuel (optionnel mais recommandé) :**
-   ```bash
-   python -m venv env
-   source env/bin/activate  # Sur Linux/Mac
-   env\Scripts\activate     # Sur Windows
-   ```
+Installez-les dépendances avec :
+```bash
+pip install -r requirements.txt
+```
 
-3. **Installer les dépendances :**
-   ```bash
-   pip install -r requirements.txt
-   ```
+### Configuration sur Ubuntu
 
-## Configuration
+Assurez-vous d'avoir installé la bibliothèque libGL via :
+```bash
+sudo apt update && sudo apt install -y libgl1-mesa-glx
+```
 
-- **Clé d'API Gémini** :  
-  Définisser la variable d'environnement `GEMINI_API_KEY` en l'ajoutant dans .env en suivant le modèle dans .env.example. 
-  NB : Vous pouvez obtenir une clé API pour GEMINI gratuitement ici : "https://ai.google.dev/gemini-api/docs/api-key"
+---
 
-- **Source de capture** :  
-  Dans l’interface de l’application, choisissez soit "Caméra IP" (en précisant l’URL du flux vidéo) soit "Fichier local" pour charger une image.
+## Configuration de l'application
 
-- **Intervalle d'analyse** :  
-  Vous pouvez configurer le délai (en secondes) entre chaque analyse via la barre latérale dans l’interface Streamlit.
+### Clé API Gemini
+
+L'application nécessite une clé API pour effectuer l'analyse.  
+- Soit vous la définissez dans une variable d'environnement `GEMINI_API_KEY`,  
+- Soit vous pouvez la saisir via l'interface.
+
+### Source d'image
+
+- **Caméra IP** :  
+  Saisissez l'URL du flux vidéo (par exemple, `http://192.168.1.100:8080/video`). Ce mode utilise une analyse continue avec décompte.
+  
+- **Fichier local** :  
+  Chargez une image (formats supportés : PNG, JPG, JPEG). L'analyse se fait une seule fois.
+
+### Configuration de l'API
+
+- Choisissez via une checkbox si vous souhaitez envoyer les alertes à une API.
+- Si activé, vous saisirez l'URL de l'endpoint API dans la barre latérale.
+- Sinon, les résultats seront consignés dans un fichier log.
+
 
 ## Utilisation
 
-Pour démarrer l’application, exécutez la commande suivante :
+Lancez l'application avec la commande suivante à la racine du projet :
 ```bash
 streamlit run app.py
 ```
-Où `app.py` est le fichier contenant l’implémentation du système.
 
-## Workflow
+### Mode Caméra IP
 
-Le fonctionnement de l’application suit les étapes suivantes :
+- Le système capture des images en continu depuis le flux de la caméra IP.
+- Un compteur (texte et barre de progression) indique le temps restant avant la prochaine capture et analyse.
 
-1. **Récupération de l’image** :  
-   - Capture via une caméra IP ou sélection d’un fichier image local.
-   
-2. **Analyse par Gémini** :  
-   - L’image capturée est envoyée à l’API Gémini pour analyse avec des instructions précises.
-   - Le résultat est renvoyé sous forme d’un JSON.
+### Mode Fichier local
 
-3. **Traitement de la réponse** :  
-   - Si au moins un événement critique est détecté (`accident`, `incendie`, ou `violence` est `true`), l'image et la réponse JSON sont envoyées à une API externe.
-   - Sinon, l’analyse est enregistrée localement dans un fichier log (`log.txt`).
+- L'utilisateur charge une image via l'interface.
+- L'analyse se réalise une seule fois. Pour analyser une nouvelle image, rechargez-en une autre et cliquez sur **Démarrer la surveillance**.
 
-4. **Affichage** :  
-   - L’image capturée et la réponse (JSON) sont affichées dans l’interface Streamlit.
+---
 
-## Contributions
+## Structure du code
 
-Les contributions sont les bienvenues !  
-Pour proposer des améliorations, merci de suivre ces étapes :
+Le code se divise en plusieurs parties :
 
-1. Fork ce dépôt.
-2. Créez votre branche de fonctionnalité (`git checkout -b feature/nouvelle-fonctionnalite`).
-3. Commitez vos modifications (`git commit -am 'Ajout nouvelle fonctionnalité'`).
-4. Poussez votre branche (`git push origin feature/nouvelle-fonctionnalite`).
-5. Créez une Pull Request.
+- **Configuration et Interface** :  
+  Mise en place de l'icône, du logo, et du titre via Streamlit, ainsi que de la configuration initiale (clé API, source d'image, API, intervalle d'analyse).
 
-## Licence
+- **Saisie et Paramétrage** (Barre latérale) :  
+  Permet de saisir la clé API, de choisir la source d'image (Caméra IP ou Fichier local), de définir l'intervalle pour la caméra, et de configurer l'endpoint API.
 
-Ce projet est sous licence MIT. Voir le fichier [LICENSE](LICENSE) pour plus d'informations.
+- **Fonctions Clés** :
+  - `capture_ip_camera_image(camera_url)` : Capture une image à partir d'une caméra IP (avec OpenCV).
+  - `call_gemini_analysis(image_path)` : Envoie l'image à SmartEye pour analyse et récupère le résultat en JSON.
+  - `formater_resultat(response_json)` (défini dans `utils.py`) : Formate et présente les résultats de manière conviviale.
+
+- **Boucle Principale** :
+  - En mode Caméra IP, une boucle infinie exécute en continu la capture, l'analyse, l'affichage des résultats et le décompte entre chaque analyse.
+  - En mode Fichier local, l'analyse se fait une seule fois.
+
+---
+
+## Déploiement et conteneurisation
+
+Pour déployer SmartEye dans un conteneur Docker, voici un exemple de Dockerfile :
+```dockerfile
+FROM python:3.11-slim
+
+RUN apt update && apt install -y libgl1-mesa-glx
+
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+COPY . .
+
+CMD ["streamlit", "run", "app.py"]
+```
+
+---
+
+## Dépannage
+
+- **Erreur "libGL.so.1: cannot open shared object file"** :  
+  Installez le paquet `libgl1-mesa-glx` sur Ubuntu :
+  ```bash
+  sudo apt update && sudo apt install -y libgl1-mesa-glx
+  ```
+
+- **Problèmes de Clé API Gemini** :  
+  Vérifiez que la clé API Gemini est bien définie dans l'environnement ou saisie via l'interface.
+  Vous pouvez l'obtenir [ici](https://ai.google.dev/gemini-api/docs/api-key)
+
+- **Erreurs de Parsing JSON** :  
+  Les erreurs de parsing de la réponse de l'analyse sont affichées sous forme de blocs de code pour faciliter le débogage.
+
+- **Erreurs de Transmission à l'API** :  
+  Les messages d'erreur liés à l'API affichent le code de réponse HTTP ainsi que le contenu retourné pour une meilleure identification du problème.
+
 
 ## Remerciements
 
-Ce projet SmartEye a été pensé et développé  par l'Equipe les Pharaons dans le cadre du Hackathon FRIARE. Un grand merci à l'équipe pour leur soutien et aux diverses ressources open-source qui ont rendu ce projet possible.
+Ce projet **SmartEye** a été pensé et développé par l'équipe *Les Pharaons* dans le cadre du Hackathon FRIARE. Un grand merci à toute l'équipe pour leur soutien, ainsi qu'aux diverses ressources open-source qui ont rendu ce projet possible.
 
-Les Pharaons, ceux sont eux :
-1- AYIWAHOUN Espérance ()
-2- ZOUL Boni
-3- HANTAN Hugues
+Les Pharaons, ce sont eux :
+1. **AYIWAHOUN Espérance**
+2. **ZOUL Boni**
+3. **HANTAN Hugues**
+
+
+---
+
+*© 2025 SmartEye - Système intelligent de surveillance | Tous droits réservés*
+
+
+
+
+
